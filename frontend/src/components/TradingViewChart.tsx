@@ -1,120 +1,135 @@
-'use client';
-import React, { useEffect, useRef, useState } from 'react';
+"use client";
+import React, { useEffect, useRef } from "react";
 
 interface TradingViewChartProps {
-    symbol: string;
-    strategy?: string;
+  symbol: string;
+  strategy?: string; // Kept for future use, currently unused
+  theme?: "light" | "dark";
+  autosize?: boolean;
+  currency?: "INR" | "USD"; 
 }
 
-export default function TradingViewChart({ symbol, strategy }: TradingViewChartProps) {
-    const containerRef = useRef<HTMLDivElement>(null);
+export default function TradingViewChart({
+  symbol,
+  strategy,
+  theme = "dark",
+  autosize = true,
+  currency = "INR", // Default to INR based on requirements
+}: TradingViewChartProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isExpanded, setIsExpanded] = React.useState(false);
 
-    return (
-        <div className="h-[500px] w-full bg-gray-900 rounded-lg overflow-hidden border border-gray-700 shadow-xl" ref={containerRef}>
-            <TradingViewWidgetContent
-                symbol={symbol}
-                strategy={strategy}
-            />
+  useEffect(() => {
+    if (!containerRef.current || !symbol) return;
+
+    // Clear previous widget
+    containerRef.current.innerHTML = "";
+
+    const script = document.createElement("script");
+    script.src =
+      "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+    script.type = "text/javascript";
+    script.async = true;
+
+    // Construct the symbol for the chart
+    // If INR is selected, we multiply the crypto/USDT pair by the USD/INR pair
+    // taking advantage of TradingView's symbol math.
+    let chartSymbol = `BINANCE:${symbol}USDT`;
+    if (currency === "INR") {
+      chartSymbol = `BINANCE:${symbol}USDT*FX_IDC:USDINR`;
+    }
+
+    script.innerHTML = JSON.stringify({
+      autosize: autosize,
+      symbol: chartSymbol,
+      interval: "D",
+      timezone: "Asia/Kolkata",
+      theme: theme,
+      style: "1",
+      locale: "en",
+      enable_publishing: false,
+      hide_top_toolbar: false,
+      hide_legend: false,
+      withdateranges: true,
+      hide_side_toolbar: false, // Enable drawing tools
+      allow_symbol_change: true,
+      save_image: false,
+      calendar: false,
+      support_host: "https://www.tradingview.com",
+    });
+
+    containerRef.current.appendChild(script);
+
+    // Cleanup function
+    return () => {
+      if (containerRef.current) {
+        containerRef.current.innerHTML = "";
+      }
+    };
+  }, [symbol, theme, autosize, currency]);
+
+  return (
+    <>
+      {/* Overlay background when expanded to dim the rest of the app */}
+      {isExpanded && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-40 backdrop-blur-sm transition-opacity"
+          onClick={() => setIsExpanded(false)}
+        />
+      )}
+      
+      <div
+        className={`transition-all duration-300 ease-in-out bg-gray-900 rounded-lg overflow-hidden border border-gray-700 shadow-xl ${
+          isExpanded 
+            ? "fixed inset-4 z-50 h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] m-auto" 
+            : "relative h-[500px] w-full"
+        }`}
+      >
+        <div ref={containerRef} className="tradingview-widget-container h-full w-full">
+          <div className="tradingview-widget-container__widget h-full w-full"></div>
         </div>
-    );
-}
 
-interface TradingViewWidgetContentProps {
-    symbol: string;
-    strategy?: string;
-}
-
-function TradingViewWidgetContent({ symbol }: TradingViewWidgetContentProps) {
-    const widgetContainerRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (!widgetContainerRef.current || !symbol) return;
-
-        const studies = [];
-        const studies_overrides = {};
-
-        // Ensure the container is empty before injecting the new script
-        // This is important because React might reuse the DOM node even with a new key,
-        // so explicitly clearing it guarantees a clean slate.
-        widgetContainerRef.current.innerHTML = '';
-
-        const script = document.createElement('script');
-        script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
-        script.type = 'text/javascript';
-        script.async = true;
-
-        const tvSymbol = `BINANCE:${symbol}USDT`;
-
-        script.text = JSON.stringify({
-            "autosize": true,
-            "symbol": tvSymbol,
-            "interval": "D",
-            "timezone": "Asia/Kolkata",
-            "theme": "dark",
-            "style": "1",
-            "locale": "en",
-            "enable_publishing": false,
-            "hide_top_toolbar": false,
-            "hide_legend": false,
-            "save_image": false,
-            "calendar": true,
-            "hide_volume": true,
-            "studies": studies,
-            "studies_overrides": studies_overrides,
-            "support_host": "https://www.tradingview.com",
-            "hide_side_toolbar": false,
-            "withdateranges": true,
-            "allow_symbol_change": true,
-            "enabled_features": [
-                "study_dialog_autofill_properties",
-                "right_toolbar_button_group",
-                "sidebar_button_group",
-                "header_widget",
-                "legend_context_menu",
-                "property_pages",
-                "create_alert_from_toolbar",
-                "show_trading_panel",
-                "popup_hints",
-                "scales_context_menu",
-                "pane_context_menu",
-                "timezone_dialog",
-                "trading_notifications",
-                "widget_templates",
-                "order_panel",
-                "create_volume_profile"
-            ],
-            "disabled_features": [
-                "use_localstorage_for_settings",
-                "context_menus",
-                "control_bar",
-                "border_around_the_chart",
-                "header_screenshot",
-                "header_saveload",
-                "header_widget_dom_node",
-                "header_chart_type",
-                "header_compare",
-                "header_undo_redo",
-                "header_fullscreen",
-                "header_settings",
-                "header_symbol_search",
-                "show_popup_button",
-                "show_object_tree"
-            ]
-        });
-
-        widgetContainerRef.current.appendChild(script);
-
-        // Cleanup function: remove the injected content when the component unmounts
-        return () => {
-            if (widgetContainerRef.current) {
-                widgetContainerRef.current.innerHTML = '';
-            }
-        };
-    }, [symbol]); // Removed 'strategy' from dependencies
-
-    return (
-        <div className="tradingview-widget-container__widget h-full w-full" ref={widgetContainerRef}>
-            {/* TradingView widget will be injected here */}
-        </div>
-    );
+        {/* Expand/Collapse Toggle Button */}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="absolute top-2 right-2 p-2 bg-gray-800 text-gray-300 hover:text-white rounded-md shadow-lg border border-gray-600 hover:bg-gray-700 transition z-50 group"
+          title={isExpanded ? "Minimize Chart" : "Maximize Chart"}
+        >
+          {isExpanded ? (
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="20" 
+              height="20" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <polyline points="4 14 10 14 10 20"></polyline>
+              <polyline points="20 10 14 10 14 4"></polyline>
+            </svg>
+          ) : (
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="20" 
+              height="20" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <polyline points="9 21 3 21 3 15"></polyline>
+              <line x1="21" y1="3" x2="14" y2="10"></line>
+              <line x1="3" y1="21" x2="10" y2="14"></line>
+            </svg>
+          )}
+        </button>
+      </div>
+    </>
+  );
 }
