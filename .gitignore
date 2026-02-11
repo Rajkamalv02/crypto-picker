@@ -1,0 +1,23 @@
+# Screenshots folder
+screenshots/
+
+# Backend
+backend/node_modules/
+backend/logs/
+
+# Frontend (Next.js)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

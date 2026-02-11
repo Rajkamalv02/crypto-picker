@@ -1,0 +1,13 @@
+// Simple RSI Strategy
+//@version=5
+indicator("RSI Strategy", overlay=true)
+rsiLength = 14
+overbought = 70
+oversold = 30
+
+rsiValue = ta.rsi(close, rsiLength)
+
+buySignal = ta.crossover(rsiValue, oversold)
+sellSignal = ta.crossunder(rsiValue, overbought)
+
+plot(rsiValue)
