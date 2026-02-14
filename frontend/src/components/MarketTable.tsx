@@ -22,7 +22,7 @@ export default function MarketTable({ assets, onSelect, selectedSymbol }: Market
                 <tbody className="bg-gray-800 divide-y divide-gray-700">
                     {assets.map((asset) => (
                         <tr 
-                            key={asset.symbol} 
+                            key={asset.id || asset.symbol} 
                             className={`cursor-pointer transition-colors border-l-4 ${
                                 selectedSymbol === asset.symbol 
                                     ? 'bg-gray-700 border-blue-500' 

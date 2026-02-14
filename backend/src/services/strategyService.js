@@ -97,6 +97,9 @@ const listStrategies = async () => {
       else if (name === "impluse_strategy")
         description =
           "Adaptive bands and impulse detection for trend following.";
+      else if (name === "master_strategy")
+        description =
+          "All-in-one picker: Toggle between Impulse, RSI, and SMA strategies.";
 
       return {
         id: name,
@@ -276,6 +279,9 @@ const executeStrategy = async (
         reason,
         latestValue: rawImpulse.toFixed(2),
       };
+    } else if (strategyName === "master_strategy") {
+      // Default master strategy to impulse logic for backend preview
+      return executeStrategy(symbol, history, "impluse_strategy");
     } // else if (strategyName === 'zscore_strategy') {
     //     // Z-Score Predictive Zones [AlgoPoint] Logic
     //     // From script: https://in.tradingview.com/script/KSMvIkvh-Z-Score-Predictive-Zones-AlgoPoint/

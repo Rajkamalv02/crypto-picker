@@ -91,7 +91,7 @@ export default function GlobalSearch({ onSelect }: GlobalSearchProps) {
                         <ul className="py-1">
                             {results.map((asset) => (
                                 <li 
-                                    key={asset.symbol}
+                                    key={asset.id || asset.symbol}
                                     onClick={() => handleSelect(asset.symbol)}
                                     className="px-4 py-2 hover:bg-gray-700 cursor-pointer flex items-center transition-colors"
                                 >

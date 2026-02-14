@@ -1,0 +1,125 @@
+// This Master Strategy combines Impulse Trend, RSI, and SMA crossover logic.
+// You can switch between strategies dynamically using the "Active Strategy" input.
+
+//@version=6
+strategy("Master Strategy Picker", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// ┌──────────────────────────────────────────────────────────────────────────────────┐
+// │ STRATEGY SELECTION                                                               │
+// └──────────────────────────────────────────────────────────────────────────────────┘
+STRAT_IMPULSE = "Impulse Trend"
+STRAT_RSI     = "RSI Reversal"
+STRAT_SMA     = "SMA Crossover"
+active_strat  = input.string(STRAT_IMPULSE, "Active Strategy", options=[STRAT_IMPULSE, STRAT_RSI, STRAT_SMA])
+
+// ┌──────────────────────────────────────────────────────────────────────────────────┐
+// │ IMPULSE TREND PARAMETERS                                                         │
+// └──────────────────────────────────────────────────────────────────────────────────┘
+g_imp = "Impulse Strategy Settings"
+imp_len        = input.int(19, "Trend Length", minval=5, group=g_imp)
+imp_lookback   = input.int(5, "Impulse Lookback", minval=1, group=g_imp)
+imp_decay      = input.float(0.99, "Decay Rate", minval=0.8, maxval=0.99, step=0.01, group=g_imp)
+imp_madLen     = input.int(20, "MAD Length", minval=5, group=g_imp)
+imp_bandMin    = input.float(1.5, "Band Min (Fresh)", minval=0.5, step=0.1, group=g_imp)
+imp_bandMax    = input.float(1.9, "Band Max (Stale)", minval=1.0, step=0.1, group=g_imp)
+imp_bullCol    = input.color(#00FFD5, "Bullish Color", group=g_imp)
+imp_bearCol    = input.color(#FF0066, "Bearish Color", group=g_imp)
+
+// ┌──────────────────────────────────────────────────────────────────────────────────┐
+// │ RSI PARAMETERS                                                                   │
+// └──────────────────────────────────────────────────────────────────────────────────┘
+g_rsi = "RSI Strategy Settings"
+rsi_length     = input.int(14, "RSI Length", group=g_rsi)
+rsi_overbought = input.int(70, "RSI Overbought", group=g_rsi)
+rsi_oversold   = input.int(30, "RSI Oversold", group=g_rsi)
+
+// ┌──────────────────────────────────────────────────────────────────────────────────┐
+// │ SMA PARAMETERS                                                                   │
+// └──────────────────────────────────────────────────────────────────────────────────┘
+g_sma = "SMA Strategy Settings"
+sma_short      = input.int(9, "Short SMA Period", group=g_sma)
+sma_long       = input.int(21, "Long SMA Period", group=g_sma)
+
+// ┌──────────────────────────────────────────────────────────────────────────────────┐
+// │ EXECUTION STATE                                                                  │
+// └──────────────────────────────────────────────────────────────────────────────────┘
+bool long_condition  = false
+bool short_condition = false
+
+// ───────────────────────────────────────────────────
+// 1. IMPULSE LOGIC
+// ───────────────────────────────────────────────────
+var float impulse_val = 0.0
+basis = ta.ema(close, imp_len)
+mean  = ta.sma(close, imp_madLen)
+mad   = ta.sma(math.abs(close - mean), imp_madLen)
+
+rawImpulse = mad > 0 ? (close - close[imp_lookback]) / mad : 0
+if math.abs(rawImpulse) > 1.0
+    impulse_val := math.abs(rawImpulse)
+else
+    impulse_val := impulse_val * imp_decay
+
+freshness = math.min(impulse_val / 2.0, 1.0)
+bandMult  = imp_bandMax - (imp_bandMax - imp_bandMin) * freshness
+upper     = basis + mad * bandMult
+lower     = basis - mad * bandMult
+
+imp_long  = ta.crossover(close, upper)
+imp_short = ta.crossunder(close, lower)
+
+if active_strat == STRAT_IMPULSE
+    long_condition  := imp_long
+    short_condition := imp_short
+
+// ───────────────────────────────────────────────────
+// 2. RSI LOGIC
+// ───────────────────────────────────────────────────
+rsi_val = ta.rsi(close, rsi_length)
+rsi_long  = ta.crossover(rsi_val, rsi_oversold)
+rsi_short = ta.crossunder(rsi_val, rsi_overbought)
+
+if active_strat == STRAT_RSI
+    long_condition  := rsi_long
+    short_condition := rsi_short
+
+// ───────────────────────────────────────────────────
+// 3. SMA LOGIC
+// ───────────────────────────────────────────────────
+sma_s_val = ta.sma(close, sma_short)
+sma_l_val = ta.sma(close, sma_long)
+sma_long_c  = ta.crossover(sma_s_val, sma_l_val)
+sma_short_c = ta.crossunder(sma_s_val, sma_l_val)
+
+if active_strat == STRAT_SMA
+    long_condition  := sma_long_c
+    short_condition := sma_short_c
+
+// ┌──────────────────────────────────────────────────────────────────────────────────┐
+// │ STRATEGY EXECUTION                                                               │
+// └──────────────────────────────────────────────────────────────────────────────────┘
+if long_condition
+    strategy.entry("Long", strategy.long, comment=active_strat + " Buy")
+
+if short_condition
+    strategy.close("Long", comment=active_strat + " Sell")
+
+// ┌──────────────────────────────────────────────────────────────────────────────────┐
+// │ VISUALS (Dynamic)                                                                │
+// └──────────────────────────────────────────────────────────────────────────────────┘
+// Only plot what is relevant to the active strategy
+plot_visible = display.all
+plot_hidden  = display.none
+
+// Impulse Visuals
+plot(active_strat == STRAT_IMPULSE ? upper : na, "Impulse Upper", color=color.new(imp_bearCol, 50))
+plot(active_strat == STRAT_IMPULSE ? lower : na, "Impulse Lower", color=color.new(imp_bullCol, 50))
+
+// RSI Visuals (optional to plot RSI on main chart, usually it's in a pane)
+// We'll plot it as a color change on bars or just small dots for signals
+plotshape(active_strat == STRAT_RSI and rsi_long, "RSI Long Dot", shape.triangleup, location.belowbar, color.green)
+plotshape(active_strat == STRAT_RSI and rsi_short, "RSI Short Dot", shape.triangledown, location.abovebar, color.red)
+
+// SMA Visuals
+plot(active_strat == STRAT_SMA ? sma_s_val : na, "Short SMA", color=color.blue)
+plot(active_strat == STRAT_SMA ? sma_l_val : na, "Long SMA", color=color.orange)

@@ -5,6 +5,7 @@ export interface Strategy {
 }
 
 export interface Asset {
+    id?: string;
     symbol: string;
     fullName: string;
     price: number;

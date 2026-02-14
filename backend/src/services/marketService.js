@@ -37,6 +37,15 @@ const fetchMarketData = async (options = {}) => {
         }
     });
 
+    // Deduplicate by coin name (symbol)
+    const seen = new Set();
+    rawData = rawData.filter(coin => {
+        const symbol = coin.CoinInfo.Name;
+        if (seen.has(symbol)) return false;
+        seen.add(symbol);
+        return true;
+    });
+
     if (rawData.length === 0) {
       throw new Error('Failed to fetch market data from CryptoCompare');
     }
@@ -47,6 +56,7 @@ const fetchMarketData = async (options = {}) => {
         if (!coin.RAW || !coin.RAW.INR) return null;
         
         return {
+          id: coin.CoinInfo.Id,
           symbol: coin.CoinInfo.Name,
           fullName: coin.CoinInfo.FullName,
           price: coin.RAW.INR.PRICE,
