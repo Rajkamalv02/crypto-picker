@@ -37,11 +37,29 @@ export default function CalculatorSection({ buyCharges, sellCharges, investmentA
                     <h4 className="font-bold text-sm text-green-400 mb-3 border-b border-green-900 pb-1">Buy Scenario</h4>
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                            <span className="text-gray-400">Brokerage (0.5%)</span>
+                            <span className="text-gray-400">Brokerage {buyCharges.details.brokerage ? `(${buyCharges.details.brokerage})` : ''}</span>
                             <span className="text-gray-200">₹{buyCharges.brokerage.toFixed(2)}</span>
                         </div>
+                        {buyCharges.stt !== undefined && buyCharges.stt > 0 && (
+                            <div className="flex justify-between">
+                                <span className="text-gray-400">STT (0.1%)</span>
+                                <span className="text-gray-200">₹{buyCharges.stt.toFixed(2)}</span>
+                            </div>
+                        )}
+                        {buyCharges.txnCharge !== undefined && buyCharges.txnCharge > 0 && (
+                            <div className="flex justify-between">
+                                <span className="text-gray-400">Txn Charges</span>
+                                <span className="text-gray-200">₹{buyCharges.txnCharge.toFixed(2)}</span>
+                            </div>
+                        )}
+                        {buyCharges.stampDuty !== undefined && buyCharges.stampDuty > 0 && (
+                            <div className="flex justify-between">
+                                <span className="text-gray-400">Stamp Duty</span>
+                                <span className="text-gray-200">₹{buyCharges.stampDuty.toFixed(2)}</span>
+                            </div>
+                        )}
                         <div className="flex justify-between">
-                            <span className="text-gray-400">GST (18% on fee)</span>
+                            <span className="text-gray-400">GST {buyCharges.details.gst ? `(${buyCharges.details.gst})` : ''}</span>
                             <span className="text-gray-200">₹{buyCharges.gst.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between font-bold pt-2 border-t border-gray-700 mt-2">
@@ -55,17 +73,31 @@ export default function CalculatorSection({ buyCharges, sellCharges, investmentA
                     <h4 className="font-bold text-sm text-red-400 mb-3 border-b border-red-900 pb-1">Sell Scenario</h4>
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                            <span className="text-gray-400">Brokerage (0.5%)</span>
+                            <span className="text-gray-400">Brokerage {sellCharges.details.brokerage ? `(${sellCharges.details.brokerage})` : ''}</span>
                             <span className="text-gray-200">₹{sellCharges.brokerage.toFixed(2)}</span>
                         </div>
+                        {sellCharges.stt !== undefined && sellCharges.stt > 0 && (
+                            <div className="flex justify-between">
+                                <span className="text-gray-400">STT (0.1%)</span>
+                                <span className="text-gray-200">₹{sellCharges.stt.toFixed(2)}</span>
+                            </div>
+                        )}
+                        {sellCharges.txnCharge !== undefined && sellCharges.txnCharge > 0 && (
+                            <div className="flex justify-between">
+                                <span className="text-gray-400">Txn Charges</span>
+                                <span className="text-gray-200">₹{sellCharges.txnCharge.toFixed(2)}</span>
+                            </div>
+                        )}
                         <div className="flex justify-between">
-                            <span className="text-gray-400">GST (18% on fee)</span>
+                            <span className="text-gray-400">GST {sellCharges.details.gst ? `(${sellCharges.details.gst})` : ''}</span>
                             <span className="text-gray-200">₹{sellCharges.gst.toFixed(2)}</span>
                         </div>
-                        <div className="flex justify-between text-red-400">
-                            <span className="text-gray-400">TDS (1%)</span>
-                            <span className="text-red-400">₹{sellCharges.tds.toFixed(2)}</span>
-                        </div>
+                        {sellCharges.tds !== undefined && sellCharges.tds > 0 && (
+                            <div className="flex justify-between text-red-400">
+                                <span className="text-gray-400">TDS (1%)</span>
+                                <span className="text-red-400">₹{sellCharges.tds.toFixed(2)}</span>
+                            </div>
+                        )}
                         <div className="flex justify-between font-bold pt-2 border-t border-gray-700 mt-2">
                             <span className="text-gray-300">Net Payout</span>
                             <span className="text-red-400">₹{sellCharges.netAmount.toFixed(2)}</span>

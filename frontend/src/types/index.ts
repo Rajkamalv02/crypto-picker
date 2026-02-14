@@ -31,16 +31,16 @@ export interface StrategyResult {
 export interface ChargeBreakdown {
     investmentAmount: number;
     type: string;
-    brokerage: number;
-    gst: number;
-    tds: number;
     totalCharges: number;
     netAmount: number;
-    details: {
-        brokerageRate: string;
-        gstRate: string;
-        tdsRate: string;
-    };
+    brokerage: number;
+    gst: number;
+    tds?: number; // Crypto specific
+    stt?: number; // Stock specific
+    txnCharge?: number; // Stock specific
+    sebi?: number; // Stock specific
+    stampDuty?: number; // Stock specific
+    details: Record<string, string>;
 }
 
 export interface AssetDetailResponse {

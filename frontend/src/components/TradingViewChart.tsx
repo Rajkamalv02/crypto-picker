@@ -32,11 +32,19 @@ export default function TradingViewChart({
     script.async = true;
 
     // Construct the symbol for the chart
-    // If INR is selected, we multiply the crypto/USDT pair by the USD/INR pair
-    // taking advantage of TradingView's symbol math.
-    let chartSymbol = `BINANCE:${symbol}USDT`;
-    if (currency === "INR") {
-      chartSymbol = `BINANCE:${symbol}USDT*FX_IDC:USDINR`;
+    let chartSymbol = "";
+    if (symbol.endsWith(".NS")) {
+      // Indian Stock (e.g., RELIANCE.NS -> NSE:RELIANCE)
+      const baseSymbol = symbol.replace(".NS", "");
+      chartSymbol = `NSE:${baseSymbol}`;
+    } else {
+      // Crypto
+      // If INR is selected, we multiply the crypto/USDT pair by the USD/INR pair
+      // taking advantage of TradingView's symbol math.
+      chartSymbol = `BINANCE:${symbol}USDT`;
+      if (currency === "INR") {
+        chartSymbol = `BINANCE:${symbol}USDT*FX_IDC:USDINR`;
+      }
     }
 
     script.innerHTML = JSON.stringify({

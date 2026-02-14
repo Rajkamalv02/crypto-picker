@@ -15,7 +15,9 @@ app.use(requestLogger);
 
 // Routes
 const apiRoutes = require('./routes/api');
+const stockApiRoutes = require('./routes/stockApi');
 app.use('/api', apiRoutes);
+app.use('/api/stock', stockApiRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

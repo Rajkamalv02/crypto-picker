@@ -1,95 +1,10 @@
 'use client';
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-import MarketTable from '@/components/MarketTable';
-import AssetDetailView from '@/components/AssetDetailView';
-import SignalSection from '@/components/SignalSection';
-import CalculatorSection from '@/components/CalculatorSection';
-import Filters from '@/components/Filters';
-import Pagination from '@/components/Pagination';
-import GlobalSearch from '@/components/GlobalSearch';
-import TradingViewChart from '@/components/TradingViewChart';
-import StrategySelector from '@/components/StrategySelector';
-import { Asset, AssetDetailResponse, MarketDataResponse } from '@/types';
-import { RefreshCcw, Activity, Terminal } from 'lucide-react';
-
-const API_BASE = 'http://localhost:5000/api';
+import { useState } from 'react';
+import MarketDashboard from '@/components/MarketDashboard';
+import { Activity, LayoutDashboard, TrendingUp } from 'lucide-react';
 
 export default function Home() {
-    const [assets, setAssets] = useState<Asset[]>([]);
-    const [totalAssets, setTotalAssets] = useState(0);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage] = useState(5);
-    const [search, setSearch] = useState('');
-    const [minPrice, setMinPrice] = useState(0);
-    const [maxPrice, setMaxPrice] = useState(1000);
-
-    const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
-    const [selectedStrategy, setSelectedStrategy] = useState<string>('rsi_strategy');
-    const [detailData, setDetailData] = useState<AssetDetailResponse | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [detailLoading, setDetailLoading] = useState(false);
-    const [investmentAmount, setInvestmentAmount] = useState(1000);
-    const [logs, setLogs] = useState<string[]>([]);
-
-    const addLog = (msg: string) => {
-        setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 10));
-    };
-
-    const fetchMarket = async () => {
-        try {
-            setLoading(true);
-            const res = await axios.get<MarketDataResponse>(`${API_BASE}/market`, {
-                params: {
-                    page: currentPage,
-                    limit: itemsPerPage,
-                    search,
-                    minPrice,
-                    maxPrice
-                }
-            });
-            setAssets(res.data.assets);
-            setTotalAssets(res.data.total);
-            addLog(`Loaded ${res.data.assets.length} assets.`);
-        } catch (err) {
-            addLog('Error fetching market data.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleFilterChange = (filters: { search: string; minPrice: number; maxPrice: number }) => {
-        setSearch(filters.search);
-        setMinPrice(filters.minPrice);
-        setMaxPrice(filters.maxPrice);
-        setCurrentPage(1);
-    };
-
-    const fetchDetail = async (symbol: string, amount: number, strategy: string) => {
-        try {
-            setDetailLoading(true);
-            addLog(`Analyzing ${symbol} with ${strategy}...`);
-            const res = await axios.get(`${API_BASE}/asset/${symbol}`, {
-                params: { amount, strategy }
-            });
-            setDetailData(res.data);
-            addLog(`${symbol}: Signal ${res.data.strategy.signal} (${res.data.strategy.reason})`);
-        } catch (err) {
-            addLog(`Error analyzing ${symbol}.`);
-        } finally {
-            setDetailLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchMarket();
-    }, [currentPage, search, minPrice, maxPrice]);
-
-    useEffect(() => {
-        if (selectedSymbol) {
-            fetchDetail(selectedSymbol, investmentAmount, selectedStrategy);
-        }
-    }, [selectedSymbol, investmentAmount, selectedStrategy]);
+    const [activeTab, setActiveTab] = useState<'crypto' | 'stock'>('crypto');
 
     return (
         <main className="min-h-screen bg-gray-900 text-gray-100 p-8">
@@ -97,125 +12,45 @@ export default function Home() {
                 <header className="flex flex-col md:flex-row justify-between items-center mb-8 space-y-4 md:space-y-0">
                     <div>
                         <h1 className="text-3xl font-bold text-white flex items-center">
-                            <Activity className="mr-3 text-blue-500" /> Crypto Picker <span className="text-blue-500 ml-2">India</span>
+                            <Activity className="mr-3 text-blue-500" /> Smart Picker <span className="text-blue-500 ml-2">India</span>
                         </h1>
-                        <p className="text-gray-400">Real-time trading suggestions & fee calculator.</p>
-                    </div>
-                    <div className="flex items-center space-x-4 w-full md:w-auto">
-                        <GlobalSearch onSelect={setSelectedSymbol} />
-                        <button 
-                            onClick={fetchMarket}
-                            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                        >
-                            <RefreshCcw size={18} className={`mr-2 ${loading ? 'animate-spin' : ''}`} /> Refresh
-                        </button>
+                        <p className="text-gray-400">Real-time trading suggestions & fee calculator for Crypto and Stocks.</p>
                     </div>
                 </header>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Market Overview Section */}
-                    <div className="lg:col-span-1 space-y-6">
-                        <section className="space-y-4">
-                            <div className="flex justify-between items-center">
-                                <h2 className="text-xl font-bold text-white">Market Overview</h2>
-                                <span className="text-xs font-medium px-2 py-1 bg-blue-900/50 text-blue-400 rounded-full border border-blue-800">
-                                    {totalAssets} Assets Found
-                                </span>
-                            </div>
-                            
-                            <Filters 
-                                onFilterChange={handleFilterChange} 
-                                initialMinPrice={minPrice} 
-                                initialMaxPrice={maxPrice} 
-                            />
+                {/* Tab Switcher */}
+                <div className="flex space-x-4 mb-8 bg-gray-800 p-1 rounded-xl w-fit border border-gray-700">
+                    <button
+                        onClick={() => setActiveTab('crypto')}
+                        className={`flex items-center px-6 py-2.5 rounded-lg font-semibold transition-all duration-200 ${
+                            activeTab === 'crypto'
+                                ? 'bg-blue-600 text-white shadow-lg'
+                                : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                        }`}
+                    >
+                        <LayoutDashboard className="mr-2" size={20} />
+                        Crypto Market
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('stock')}
+                        className={`flex items-center px-6 py-2.5 rounded-lg font-semibold transition-all duration-200 ${
+                            activeTab === 'stock'
+                                ? 'bg-blue-600 text-white shadow-lg'
+                                : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                        }`}
+                    >
+                        <TrendingUp className="mr-2" size={20} />
+                        Indian Stock Market
+                    </button>
+                </div>
 
-                            {loading ? (
-                                <div className="bg-gray-800 p-8 rounded-lg shadow text-center text-gray-400 border border-gray-700">Loading assets...</div>
-                            ) : (
-                                <div className="flex flex-col space-y-0 shadow-lg">
-                                    <MarketTable 
-                                        assets={assets} 
-                                        onSelect={setSelectedSymbol} 
-                                        selectedSymbol={selectedSymbol || undefined} 
-                                    />
-                                    <Pagination 
-                                        currentPage={currentPage}
-                                        totalItems={totalAssets}
-                                        itemsPerPage={itemsPerPage}
-                                        onPageChange={setCurrentPage}
-                                    />
-                                </div>
-                            )}
-                        </section>
-
-                        {/* Logs Section */}
-                        <section className="bg-gray-950 rounded-lg p-4 text-green-400 font-mono text-xs shadow-lg h-56 overflow-hidden border border-gray-800">
-                            <div className="flex items-center mb-2 border-b border-gray-800 pb-2 text-gray-500 uppercase tracking-tighter">
-                                <Terminal size={12} className="mr-2" /> System Logs / Status
-                            </div>
-                            <div className="space-y-1 overflow-y-auto h-40">
-                                {logs.map((log, i) => (
-                                    <div key={i} className="border-l-2 border-green-900 pl-2 mb-1">{log}</div>
-                                ))}
-                            </div>
-                        </section>
-                    </div>
-
-                    {/* Detailed Analysis Section */}
-                    <div className="lg:col-span-2 space-y-6">
-                        {!selectedSymbol ? (
-                            <div className="bg-gray-800 p-20 rounded-lg shadow text-center border-2 border-dashed border-gray-700 flex flex-col items-center justify-center min-h-[400px]">
-                                <Activity size={64} className="text-gray-600 mb-4 animate-pulse" />
-                                <div className="text-gray-400 text-xl font-medium">Select an asset from the list to begin analysis</div>
-                                <p className="text-gray-500 mt-2">Get real-time indicators and fee breakdowns</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <div className="flex justify-between items-center bg-gray-800/50 p-4 rounded-lg border border-gray-700">
-                                     <div className="flex items-center">
-                                         <div className="p-2 bg-blue-500/10 rounded-lg mr-4">
-                                            <Activity className="text-blue-500" size={24} />
-                                         </div>
-                                         <div>
-                                            <h2 className="text-2xl font-bold text-white">{selectedSymbol} Analysis</h2>
-                                            <div className="text-xs text-gray-400 uppercase tracking-wider">Real-time Data & Intelligence</div>
-                                         </div>
-                                     </div>
-                                </div>
-
-                                {/* TradingView Chart */}
-                                <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 shadow-xl">
-                                    <TradingViewChart symbol={selectedSymbol} strategy={selectedStrategy} />
-                                </div>
-
-                                <StrategySelector 
-                                    currentStrategy={selectedStrategy}
-                                    onStrategyChange={setSelectedStrategy}
-                                />
-
-                                {detailLoading && !detailData ? (
-                                    <div className="bg-gray-800 p-20 rounded-lg shadow text-center text-gray-400">Analyzing market dynamics...</div>
-                                ) : detailData && (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="md:col-span-1">
-                                            <AssetDetailView data={detailData} />
-                                        </div>
-                                        <div className="md:col-span-1">
-                                            <SignalSection strategy={detailData.strategy} />
-                                        </div>
-                                        <div className="md:col-span-2">
-                                            <CalculatorSection 
-                                                buyCharges={detailData.calculator.buy}
-                                                sellCharges={detailData.calculator.sell}
-                                                investmentAmount={investmentAmount}
-                                                onAmountChange={setInvestmentAmount}
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                {/* Dashboard Content */}
+                <div key={activeTab}>
+                    {activeTab === 'crypto' ? (
+                        <MarketDashboard type="crypto" />
+                    ) : (
+                        <MarketDashboard type="stock" />
+                    )}
                 </div>
             </div>
         </main>

@@ -6,11 +6,11 @@ import { Asset, MarketDataResponse } from '@/types';
 
 interface GlobalSearchProps {
     onSelect: (symbol: string) => void;
+    apiBase: string;
+    placeholder?: string;
 }
 
-const API_BASE = 'http://localhost:5000/api';
-
-export default function GlobalSearch({ onSelect }: GlobalSearchProps) {
+export default function GlobalSearch({ onSelect, apiBase, placeholder }: GlobalSearchProps) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<Asset[]>([]);
     const [loading, setLoading] = useState(false);
@@ -37,7 +37,7 @@ export default function GlobalSearch({ onSelect }: GlobalSearchProps) {
             setLoading(true);
             try {
                 // Limit to 5 results for dropdown
-                const res = await axios.get<MarketDataResponse>(`${API_BASE}/market`, {
+                const res = await axios.get<MarketDataResponse>(`${apiBase}/market`, {
                     params: { search: query, limit: 5 }
                 });
                 setResults(res.data.assets);
@@ -67,7 +67,7 @@ export default function GlobalSearch({ onSelect }: GlobalSearchProps) {
                 <input
                     type="text"
                     className="block w-full pl-10 pr-3 py-2 border border-gray-600 rounded-lg leading-5 bg-gray-800 text-gray-100 placeholder-gray-400 focus:outline-none focus:bg-gray-700 focus:border-blue-500 sm:text-sm transition duration-150 ease-in-out"
-                    placeholder="Search for asset (e.g. BTC, ETH)..."
+                    placeholder={placeholder || "Search for asset..."}
                     value={query}
                     onChange={(e) => {
                         setQuery(e.target.value);
