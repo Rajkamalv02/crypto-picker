@@ -1,82 +1,148 @@
- //This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
-// © BOSWaves
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © BOSWaves - Swing Long Edition (Strategy)
 
 //@version=6
-indicator("Impulse Trend Levels [BOSWaves]", overlay=true)
+strategy("Impulse Trend Levels [BOSWaves] - Swing Long", 
+     overlay            = true, 
+     initial_capital    = 10000, 
+     default_qty_type   = strategy.percent_of_equity, 
+     default_qty_value  = 100, 
+     commission_type    = strategy.commission.percent, 
+     commission_value   = 0.1, 
+     slippage           = 3)
 
 // ┌────────────────────────────── BOSWaves ─ Constants ──────────────────────────────┐
 // └──────────────────────────────────────────────────────────────────────────────────┘
 const string g1 = "Core Engine"
 const string g2 = "Adaptive Bands"
 const string g3 = "Signals & Display"
+const string g4 = "Exit Strategy"
+const string g5 = "Filters"
+const string g6 = "Backtest Date Range"
 
-color BULL = #00FFD5
-color BEAR = #FF0066
+color BULL    = #00FFD5
+color NEUTRAL = #888888
 
 // ┌────────────────────────────── BOSWaves ─ Tooltips ───────────────────────────────┐
 // └──────────────────────────────────────────────────────────────────────────────────┘
-const string tt_len       = "Baseline smoothing length. Higher = smoother trend, fewer signals."
-const string tt_impulse   = "Lookback for impulse detection. Lower = more reactive to sudden moves."
-const string tt_decay     = "How fast impulse freshness fades. Higher = impulses stay fresh longer."
-const string tt_mad_len   = "Lookback for Mean Absolute Deviation calculation. Higher = smoother bands."
-const string tt_band_min  = "Minimum band multiplier when impulse is fresh (tight bands = confidence)."
-const string tt_band_max  = "Maximum band multiplier when impulse is stale (wide bands = caution)."
-const string tt_cloud     = "Display the adaptive trend cloud around price."
-const string tt_bars      = "Color candles based on current trend direction."
-const string tt_signals   = "Show Buy/Sell labels when trend switches direction."
-const string tt_bands     = "Show the adaptive upper and lower bands."
-const string tt_colors    = "Colors for bullish and bearish trend states."
-const string tt_signal_buffer = "Bars to wait after Buy/Sell signal before drawing retest lines."
+const string tt_len           = "Baseline smoothing length. Higher = smoother trend, fewer signals."
+const string tt_impulse       = "Lookback for impulse detection. Lower = more reactive to sudden moves."
+const string tt_decay         = "How fast impulse freshness fades. Higher = impulses stay fresh longer."
+const string tt_mad_len       = "Lookback for Mean Absolute Deviation calculation. Higher = smoother bands."
+const string tt_band_min      = "Minimum band multiplier when impulse is fresh (tight bands = confidence)."
+const string tt_band_max      = "Maximum band multiplier when impulse is stale (wide bands = caution)."
+const string tt_cloud         = "Display the adaptive trend cloud around price."
+const string tt_bars          = "Color candles based on current trend direction."
+const string tt_signals       = "Show Buy/Exit labels when trend switches direction."
+const string tt_bands         = "Show the adaptive upper and lower bands."
+const string tt_signal_buffer = "Bars to wait after Buy signal before drawing retest lines."
+const string tt_exit_mode     = "Profit Protection: Basis = exit at middle line, Band = exit at opposite band, Impulse = exit when momentum fades."
+const string tt_allow_reentry = "Allow re-entry on pullbacks after taking profit."
+const string tt_sl            = "Hard stop loss % below entry price. Cuts the trade immediately if price drops this much from entry. Example: 1.5 = max 1.5% loss."
+const string tt_trail         = "Base trailing stop %. Trail starts here and tightens as profit grows — 2% profit = 2% trail, 3% profit = 3% trail, and so on."
+const string tt_adx           = "Only take signals when ADX is above threshold — filters out choppy sideways markets."
+const string tt_adx_len       = "ADX calculation length."
+const string tt_adx_thresh    = "Minimum ADX value required to allow signals. 20 = mild trend, 25 = strong trend."
+const string tt_htf           = "Only take longs when price is above this EMA on a higher timeframe — avoids counter-trend entries."
+const string tt_htf_tf        = "Timeframe for the higher timeframe EMA bias check."
+const string tt_htf_len       = "EMA length for the higher timeframe bias."
+const string tt_vol           = "Only take breakout signals when volume is above average — filters low conviction breakouts."
+const string tt_vol_len       = "Lookback length for average volume calculation."
+const string tt_vol_mult      = "Volume must be this many times above average to allow a breakout signal."
+const string tt_retest_expiry = "How many bars a retest line stays valid. After this, the level is considered expired."
 
 // ┌────────────────────────────── BOSWaves ─ Inputs ─────────────────────────────────┐
 // └──────────────────────────────────────────────────────────────────────────────────┘
 
 // ─────────────────── Core Engine ───────────────────
-int   len        = input.int(19, "Trend Length", minval=5, group=g1, tooltip=tt_len)
-int   impulseLen = input.int(5, "Impulse Lookback", minval=1, group=g1, tooltip=tt_impulse)
-float decayRate  = input.float(0.99, "Decay Rate", minval=0.8, maxval=0.99, step=0.01, group=g1, tooltip=tt_decay)
+int   len        = input.int(19,    "Trend Length",     minval=5,                           group=g1, tooltip=tt_len)
+int   impulseLen = input.int(5,     "Impulse Lookback", minval=1,                           group=g1, tooltip=tt_impulse)
+float decayRate  = input.float(0.99,"Decay Rate",       minval=0.8, maxval=0.99, step=0.01, group=g1, tooltip=tt_decay)
 
 // ─────────────────── Adaptive Bands ───────────────────
-int   madLen   = input.int(20, "MAD Length", minval=5, group=g2, tooltip=tt_mad_len)
-float bandMin  = input.float(1.5, "Band Min (Fresh)", minval=0.5, step=0.1, group=g2, tooltip=tt_band_min)
-float bandMax  = input.float(1.9, "Band Max (Stale)", minval=1.0, step=0.1, group=g2, tooltip=tt_band_max)
-bool  showBands = input.bool(true, "Show Bands", group=g2, tooltip=tt_bands)
+int   madLen    = input.int(20,    "MAD Length",       minval=5,                            group=g2, tooltip=tt_mad_len)
+float bandMin   = input.float(1.5, "Band Min (Fresh)", minval=0.5, step=0.1,                group=g2, tooltip=tt_band_min)
+float bandMax   = input.float(1.9, "Band Max (Stale)", minval=1.0, step=0.1,                group=g2, tooltip=tt_band_max)
+bool  showBands = input.bool(true,  "Show Bands",                                           group=g2, tooltip=tt_bands)
 
 // ─────────────────── Signals & Display ───────────────────
-bool  showCloud   = input.bool(true, "Show Trend Cloud", group=g3, tooltip=tt_cloud)
-bool  paintBars   = input.bool(true, "Color Bars", group=g3, tooltip=tt_bars)
-bool  showSignals = input.bool(true, "Show Buy/Sell Signals", group=g3, tooltip=tt_signals)
-color bullCol     = input.color(BULL, "Bullish", inline="col", group=g3, tooltip=tt_colors)
-color bearCol     = input.color(BEAR, "Bearish", inline="col", group=g3)
-int   rtW         = input.int(6, "Retest Line Width", group=g3)
-int   signalBuffer = input.int(10, "Signal Buffer Period", minval=1, maxval=30, group=g3, tooltip=tt_signal_buffer)
+bool  showCloud    = input.bool(true,  "Show Trend Cloud",      group=g3, tooltip=tt_cloud)
+bool  paintBars    = input.bool(true,  "Color Bars",            group=g3, tooltip=tt_bars)
+bool  showSignals  = input.bool(true,  "Show Signals",          group=g3, tooltip=tt_signals)
+color bullCol      = input.color(BULL, "Bullish Color",         group=g3)
+int   rtW          = input.int(6,      "Retest Line Width",     group=g3)
+int   signalBuffer = input.int(10,     "Signal Buffer Period",  minval=1, maxval=30,        group=g3, tooltip=tt_signal_buffer)
+int   retestExpiry = input.int(50,     "Retest Line Expiry",    minval=10, maxval=200,      group=g3, tooltip=tt_retest_expiry)
+
+// ─────────────────── Exit Strategy ───────────────────
+string exitMode     = input.string("Basis Cross", "Exit Mode", options=["Basis Cross","Opposite Band","Impulse Fade"], group=g4, tooltip=tt_exit_mode)
+bool   allowReentry = input.bool(true,  "Allow Re-Entry",                                   group=g4, tooltip=tt_allow_reentry)
+float  slPercent    = input.float(1.5,  "Hard Stop Loss %",       minval=0.5, maxval=10.0, step=0.5, group=g4, tooltip=tt_sl)
+float  trailPercent = input.float(2.0,  "Trailing Stop % (Base)", minval=0.5, maxval=10.0, step=0.5, group=g4, tooltip=tt_trail)
+
+// ─────────────────── Filters ───────────────────
+bool  useAdx    = input.bool(false,  "ADX Trend Filter",               group=g5, tooltip=tt_adx)
+int   adxLen    = input.int(14,      "ADX Length",       minval=5,     group=g5, tooltip=tt_adx_len)
+float adxThresh = input.float(20.0,  "ADX Threshold",   minval=10, maxval=50, step=1.0, group=g5, tooltip=tt_adx_thresh)
+
+bool   useHtf   = input.bool(false,  "Higher Timeframe Bias",          group=g5, tooltip=tt_htf)
+string htfTf    = input.timeframe("D","HTF Timeframe",                 group=g5, tooltip=tt_htf_tf)
+int    htfLen   = input.int(50,      "HTF EMA Length",   minval=5,     group=g5, tooltip=tt_htf_len)
+
+bool  useVol    = input.bool(false,  "Volume Filter (Breakouts Only)", group=g5, tooltip=tt_vol)
+int   volLen    = input.int(20,      "Volume Avg Length", minval=5,    group=g5, tooltip=tt_vol_len)
+float volMult   = input.float(1.2,   "Volume Multiplier", minval=1.0,  step=0.1, group=g5, tooltip=tt_vol_mult)
+
+// ─────────────────── Backtest Date Range ───────────────────
+int fromYear  = input.int(2025, "From Year",  minval=2000, maxval=2100, group=g6)
+int fromMonth = input.int(1,    "From Month", minval=1,    maxval=12,   group=g6)
+int fromDay   = input.int(1,    "From Day",   minval=1,    maxval=31,   group=g6)
+int toYear    = input.int(2026, "To Year",    minval=2000, maxval=2100, group=g6)
+int toMonth   = input.int(12,   "To Month",   minval=1,    maxval=12,   group=g6)
+int toDay     = input.int(31,   "To Day",     minval=1,    maxval=31,   group=g6)
+
+int  fromDate    = timestamp(fromYear,  fromMonth,  fromDay,  0,  0)
+int  toDate      = timestamp(toYear,    toMonth,    toDay,    23, 59)
+bool inDateRange = time >= fromDate and time <= toDate
 
 // ┌────────────────────────────── BOSWaves ─ State ──────────────────────────────────┐
 // └──────────────────────────────────────────────────────────────────────────────────┘
-var float impulse    = 0.0
-var int   impulseDir = 0
-var int   lastSignal = 0
-var int   lastBullDot = na
-var int   lastBearDot = na
+var float impulse       = 0.0
+var int   impulseDir    = 0
+var int   lastSignal    = 0
+var int   lastBullDot   = na
+var int   lastSignalBar = 0
+var float highestHigh   = 0.0
+var float trailStopLine = 0.0
 
 // ┌────────────────────────────── BOSWaves ─ Core Calculations ──────────────────────┐
 // └──────────────────────────────────────────────────────────────────────────────────┘
-float basisO = ta.ema(open, len)
-float basisC = ta.ema(close, len)
-float basis  = basisC
+float basis = ta.ema(close, len)
+float atr14 = ta.atr(14)
 
-// ┌────────────────────────────── BOSWaves ─ Mean Absolute Deviation ────────────────┐
+// ┌────────────────────────────── BOSWaves ─ SafeMAD ────────────────────────────────┐
 // └──────────────────────────────────────────────────────────────────────────────────┘
-float mean = ta.sma(close, madLen)
-float mad  = ta.sma(math.abs(close - mean), madLen)
+float mean    = ta.sma(close, madLen)
+float mad     = ta.sma(math.abs(close - mean), madLen)
+float safeMad = math.max(mad, atr14 * 0.1)
+
+// ┌────────────────────────────── BOSWaves ─ Filters ────────────────────────────────┐
+// └──────────────────────────────────────────────────────────────────────────────────┘
+[_, _, adxVal] = ta.dmi(adxLen, adxLen)
+bool adxOk = not useAdx or adxVal >= adxThresh
+
+float htfEma = request.security(syminfo.tickerid, htfTf, ta.ema(close, htfLen), lookahead=barmerge.lookahead_off)
+bool  htfOk  = not useHtf or close > htfEma
+
+float volAvg = ta.sma(volume, volLen)
+bool  volOk  = not useVol or volume >= volAvg * volMult
 
 // ┌────────────────────────────── BOSWaves ─ Impulse Detection ──────────────────────┐
 // └──────────────────────────────────────────────────────────────────────────────────┘
-float rawImpulse    = mad > 0 ? (close - close[impulseLen]) / mad : 0
-float impulseThresh = 1.0
-float absRaw        = math.abs(rawImpulse)
+float rawImpulse = safeMad > 0 ? (close - close[impulseLen]) / safeMad : 0.0
+float absRaw     = math.abs(rawImpulse)
 
-if absRaw > impulseThresh
+if absRaw > 1.0
     impulse    := absRaw
     impulseDir := rawImpulse > 0 ? 1 : -1
 else
@@ -87,88 +153,188 @@ float freshness = math.min(impulse / 2.0, 1.0)
 // ┌────────────────────────────── BOSWaves ─ Adaptive Bands ─────────────────────────┐
 // └──────────────────────────────────────────────────────────────────────────────────┘
 float bandMult = bandMax - (bandMax - bandMin) * freshness
-float upper    = basis + mad * bandMult
-float lower    = basis - mad * bandMult
+float upper    = basis + safeMad * bandMult
+float lower    = basis - safeMad * bandMult
 
 // ┌────────────────────────────── BOSWaves ─ Signal Logic ───────────────────────────┐
 // └──────────────────────────────────────────────────────────────────────────────────┘
-bool longCond  = ta.crossover(close, upper)
-bool shortCond = ta.crossunder(close, lower)
+bool breakoutLong = ta.crossover(close, upper) and adxOk and htfOk and volOk
+bool reentryLong  = allowReentry and lastSignal == 0 and ta.crossover(close, basis) and impulseDir == 1 and impulse > 1.5 and adxOk and htfOk
 
+// Exit conditions
+bool exitLongBasis   = exitMode == "Basis Cross"   and lastSignal == 1 and ta.crossunder(close, basis)
+bool exitLongBand    = exitMode == "Opposite Band" and lastSignal == 1 and low <= lower
+bool exitLongImpulse = exitMode == "Impulse Fade"  and lastSignal == 1 and freshness < 0.25 and close < basis
+bool exitLong        = exitLongBasis or exitLongBand or exitLongImpulse
+
+// Track previous state
 int prevSignal = lastSignal
-lastSignal := longCond ? 1 : shortCond ? -1 : lastSignal
 
-bool  switchUp   = lastSignal == 1 and prevSignal == -1
-bool  switchDown = lastSignal == -1 and prevSignal == 1
-color trendCol   = lastSignal == 1 ? bullCol : bearCol
+// Update signal state
+if breakoutLong or reentryLong
+    lastSignal    := 1
+    lastSignalBar := bar_index
+    highestHigh   := close
+    trailStopLine := 0.0
+else if exitLong or strategy.position_size == 0
+    lastSignal    := 0
+    highestHigh   := 0.0
+    trailStopLine := 0.0
+
+// Track highest price while in trade
+if lastSignal == 1
+    highestHigh := math.max(highestHigh, high)
+
+// ┌────────────────────────────── BOSWaves ─ Dynamic Trailing Stop ──────────────────┐
+// Base trail = 2%. As profit grows trail tightens to match:
+// Profit 2% → trail 2% | Profit 3% → trail 3% | Profit 5% → trail 5%
+// Trail line only ever moves UP — never repaints downward
+// └──────────────────────────────────────────────────────────────────────────────────┘
+float entryPrice    = strategy.position_avg_price
+float hardSlLevel   = lastSignal == 1 and entryPrice > 0 ? entryPrice * (1 - slPercent / 100) : na
+float currentProfit = entryPrice > 0 and highestHigh > 0 ? ((highestHigh - entryPrice) / entryPrice) * 100 : 0.0
+float dynamicTrail  = math.max(trailPercent, math.floor(currentProfit))
+float trailSlLevel  = lastSignal == 1 ? highestHigh * (1 - dynamicTrail / 100) : na
+
+// Trail line — only moves up, never down
+if lastSignal == 1 and trailSlLevel > 0
+    trailStopLine := trailStopLine == 0.0 ? trailSlLevel : math.max(trailStopLine, trailSlLevel)
+
+// Detect state changes
+bool switchToLong = lastSignal == 1 and prevSignal != 1
+bool switchToFlat = lastSignal == 0 and prevSignal != 0
+
+// Signal types for labels
+bool showBreakoutLong = switchToLong and breakoutLong
+bool showReentryLong  = switchToLong and reentryLong
+bool showExitLong     = switchToFlat and prevSignal == 1
+
+// ┌────────────────────────────── BOSWaves ─ Strategy Execution ─────────────────────┐
+// └──────────────────────────────────────────────────────────────────────────────────┘
+if inDateRange
+    if breakoutLong
+        strategy.entry("Long", strategy.long, comment="▲ BUY | BREAKOUT LONG")
+    if reentryLong
+        strategy.entry("Long", strategy.long, comment="▲ BUY | PULLBACK LONG")
+
+if strategy.position_size > 0 and inDateRange
+    float trailOffsetP = highestHigh * (dynamicTrail / 100) / syminfo.mintick
+    strategy.exit("Stop / Trail", from_entry="Long",
+         stop         = hardSlLevel,
+         trail_price  = highestHigh,
+         trail_offset = trailOffsetP,
+         comment      = "✖ STOP / TRAIL HIT")
+
+if exitLong and inDateRange
+    strategy.close_all(comment="✔ EXIT BUY | CLOSE LONG")
+
+// ┌────────────────────────────── BOSWaves ─ Colors ─────────────────────────────────┐
+// └──────────────────────────────────────────────────────────────────────────────────┘
+color trendCol = lastSignal == 1 ? bullCol : color.new(NEUTRAL, 50)
 
 // ┌────────────────────────────── BOSWaves ─ Candles ────────────────────────────────┐
 // └──────────────────────────────────────────────────────────────────────────────────┘
-plotcandle(open, high, low, close, "Candles", 
-     trendCol, trendCol, 
-     bordercolor=trendCol,
-     display=paintBars ? display.all : display.none)
+plotcandle(open, high, low, close, "Candles",
+     trendCol, trendCol,
+     bordercolor = trendCol,
+     display      = paintBars ? display.all : display.none)
+
+// ┌────────────────────────────── BOSWaves ─ Band Lines ─────────────────────────────┐
+// └──────────────────────────────────────────────────────────────────────────────────┘
+plot(showBands ? upper : na, "Upper Band", color=color.new(#FF0066, 70), linewidth=1)
+plot(showBands ? lower : na, "Lower Band", color=color.new(bullCol,  70), linewidth=1)
+plot(showBands ? basis : na, "Basis",      color=color.new(NEUTRAL,  40), linewidth=1)
+
+// ┌────────────────────────────── BOSWaves ─ Stop Loss Lines ────────────────────────┐
+// Red    = Hard stop  — fixed at 1.5% below entry, never moves
+// Orange = Trailing stop — rises with price, tightens as profit grows from 2% base
+// └──────────────────────────────────────────────────────────────────────────────────┘
+plot(hardSlLevel,                          "Hard Stop Loss", color=color.new(color.red,    20), linewidth=1, style=plot.style_linebr)
+plot(lastSignal == 1 ? trailStopLine : na, "Trailing Stop",  color=color.new(color.orange, 20), linewidth=2, style=plot.style_linebr)
+
+// ┌────────────────────────────── BOSWaves ─ HTF EMA ────────────────────────────────┐
+// └──────────────────────────────────────────────────────────────────────────────────┘
+plot(useHtf ? htfEma : na, "HTF EMA Bias", color=color.new(color.orange, 30), linewidth=2)
 
 // ┌────────────────────────────── BOSWaves ─ Trend Cloud ────────────────────────────┐
 // └──────────────────────────────────────────────────────────────────────────────────┘
-float bandThickness = mad * 0.5
-float bandOuter     = lastSignal == 1 ? lower : upper
-float bandInner     = lastSignal == 1 ? lower + bandThickness : upper - bandThickness
+float bandThickness = safeMad * 0.5
+float bandOuter     = lastSignal == 1 ? lower                 : basis
+float bandInner     = lastSignal == 1 ? lower + bandThickness : basis
 
-pOuter = plot(showCloud ? bandOuter : na, "Band Outer", color=trendCol, linewidth=2)
-pInner = plot(showCloud ? bandInner : na, "Band Inner", color=color.new(trendCol, 70), linewidth=1)
+pOuter = plot(showCloud ? bandOuter : na, "Cloud Outer", color=trendCol, linewidth=2)
+pInner = plot(showCloud ? bandInner : na, "Cloud Inner", color=color.new(trendCol, 70), linewidth=1)
 
-fill(pOuter, pInner, bandOuter, bandInner, 
-     lastSignal == 1 ? color.new(bullCol, 30) : color.new(bearCol, 80),
-     lastSignal == 1 ? color.new(bullCol, 80) : color.new(bearCol, 30))
+fill(pOuter, pInner, bandOuter, bandInner,
+     lastSignal == 1 ? color.new(bullCol, 30) : color.new(NEUTRAL, 90),
+     lastSignal == 1 ? color.new(bullCol, 80) : color.new(NEUTRAL, 95))
 
 // ┌────────────────────────────── BOSWaves ─ Retest Detection ───────────────────────┐
 // └──────────────────────────────────────────────────────────────────────────────────┘
-
-var int lastSignalBar = 0
-if switchUp or switchDown
-    lastSignalBar := bar_index
-
 bool farEnoughFromSignal = bar_index - lastSignalBar >= signalBuffer
-
-bool bullRetest = lastSignal == 1 and low < bandInner and farEnoughFromSignal
-bool bearRetest = lastSignal == -1 and high > bandInner and farEnoughFromSignal
-
-bool bullDotOk = bullRetest and (na(lastBullDot) or bar_index - lastBullDot >= 55)
-bool bearDotOk = bearRetest and (na(lastBearDot) or bar_index - lastBearDot >= 55)
-
-int duration = 50
+bool bullRetest          = lastSignal == 1 and low < bandInner and farEnoughFromSignal
+bool bullDotOk           = bullRetest and (na(lastBullDot) or bar_index - lastBullDot >= 55)
 
 if bullDotOk
     lastBullDot := bar_index
-    line.new(bar_index, low, bar_index + duration, low, color=color.new(bullCol, 50), style=line.style_solid, width=rtW)
-
-if bearDotOk
-    lastBearDot := bar_index
-    line.new(bar_index, high, bar_index + duration, high, color=color.new(bearCol, 50), style=line.style_solid, width=rtW)
+    line.new(bar_index, low, bar_index + retestExpiry, low, color=color.new(bullCol, 50), style=line.style_solid, width=rtW)
 
 // ┌────────────────────────────── BOSWaves ─ Signals ────────────────────────────────┐
 // └──────────────────────────────────────────────────────────────────────────────────┘
-if showSignals and switchUp
-    label.new(bar_index, low - mad * 1.5, "▲", 
-         style=label.style_label_up, 
-         size=size.normal, 
-         color=bullCol, 
-         textcolor=color.white)
+color c_breakoutLong = #00C853
+color c_pullbackLong = #0091EA
+color c_exitLong     = #FFD600
 
-if showSignals and switchDown
-    label.new(bar_index, high + mad * 1.5, "▼", 
-         style=label.style_label_down, 
-         size=size.normal, 
-         color=bearCol, 
-         textcolor=color.white)
+float lOffset = atr14 * 0.4
+float sOffset = atr14 * 0.25
 
-plotchar(bullDotOk ? low : na, "Bull Retest", "✦", location.absolute, bullCol, size=size.small)
-plotchar(bearDotOk ? high : na, "Bear Retest", "✦", location.absolute, bearCol, size=size.small)
+if showSignals and showBreakoutLong
+    label.new(
+         bar_index, low - lOffset,
+         "▲ BUY  |  BREAKOUT LONG",
+         style     = label.style_label_up,
+         size      = size.normal,
+         color     = c_breakoutLong,
+         textcolor = color.white,
+         tooltip   = "Price broke above the upper band.\nImpulse Freshness: " + str.tostring(math.round(freshness * 100)) + "%\nADX: " + str.tostring(math.round(adxVal, 1)) + "\nHard Stop: " + str.tostring(slPercent) + "% below entry\nTrail Base: " + str.tostring(trailPercent) + "% → tightens as profit grows")
+
+if showSignals and showReentryLong
+    label.new(
+         bar_index, low - sOffset,
+         "▲ BUY  |  PULLBACK LONG",
+         style     = label.style_label_up,
+         size      = size.small,
+         color     = c_pullbackLong,
+         textcolor = color.white,
+         tooltip   = "Re-entry: price recrossed basis with bullish impulse still active.\nImpulse: " + str.tostring(math.round(impulse, 2)) + "\nHard Stop: " + str.tostring(slPercent) + "% below entry\nTrail Base: " + str.tostring(trailPercent) + "% → tightens as profit grows")
+
+if showSignals and showExitLong
+    label.new(
+         bar_index, high + sOffset,
+         "✔ EXIT BUY  |  CLOSE LONG",
+         style     = label.style_label_down,
+         size      = size.small,
+         color     = c_exitLong,
+         textcolor = color.black,
+         tooltip   = "Long position closed by signal.\nExit Mode: " + exitMode + "\nFinal Trail %: " + str.tostring(math.round(dynamicTrail, 1)) + "%")
+
+plotchar(bullDotOk ? low : na, "Bull Retest Zone", "✦", location.absolute, c_breakoutLong, size=size.small)
+
+// ┌────────────────────────────── BOSWaves ─ Data Window ────────────────────────────┐
+// └──────────────────────────────────────────────────────────────────────────────────┘
+plot(freshness,     "Impulse Freshness", display=display.data_window)
+plot(adxVal,        "ADX",               display=display.data_window)
+plot(htfEma,        "HTF EMA",           display=display.data_window)
+plot(hardSlLevel,   "Hard Stop Level",   display=display.data_window)
+plot(trailStopLine, "Trail Stop Level",  display=display.data_window)
+plot(dynamicTrail,  "Current Trail %",   display=display.data_window)
+plot(currentProfit, "Current Profit %",  display=display.data_window)
 
 // ┌────────────────────────────── BOSWaves ─ Alerts ─────────────────────────────────┐
 // └──────────────────────────────────────────────────────────────────────────────────┘
-alertcondition(switchUp, "Impulse Long", "Impulse Engine LONG {{ticker}} {{interval}}")
-alertcondition(switchDown, "Impulse Short", "Impulse Engine SHORT {{ticker}} {{interval}}")
-alertcondition(bullDotOk or bearDotOk, "Impulse Retest", "Impulse Engine Retest {{ticker}} {{interval}}")
-alertcondition(freshness[1] > 0.5 and freshness <= 0.5, "Impulse Fading", "Impulse fading below 50% {{ticker}} {{interval}}")
+alertcondition(switchToLong,                            "Breakout / Re-Entry Long", "ITL LONG     | {{ticker}} {{interval}}")
+alertcondition(showBreakoutLong,                        "Breakout Long Only",       "ITL BREAKOUT | {{ticker}} {{interval}}")
+alertcondition(showReentryLong,                         "Pullback Long Only",       "ITL PULLBACK | {{ticker}} {{interval}}")
+alertcondition(switchToFlat,                            "Exit Long",                "ITL EXIT     | {{ticker}} {{interval}}")
+alertcondition(bullDotOk,                               "Retest Zone",              "ITL RETEST   | {{ticker}} {{interval}}")
+alertcondition(freshness[1] > 0.5 and freshness <= 0.5, "Impulse Fading",           "ITL FADING   | {{ticker}} {{interval}}")

@@ -88,16 +88,6 @@ const listStrategies = async () => {
     .filter((f) => f.endsWith(".pine"))
     .map((f) => {
       const name = f.replace(".pine", "");
-      let description = "";
-      if (name === "rsi_strategy")
-        description = "Uses RSI(14) to detect Overbought/Oversold conditions.";
-      else if (name === "sma_strategy")
-        description =
-          "Uses SMA(9) and SMA(21) crossover to detect trend changes.";
-      else if (name === "impluse_strategy")
-        description =
-          "Adaptive bands and impulse detection for trend following.";
-
       return {
         id: name,
         name: name
@@ -112,7 +102,7 @@ const listStrategies = async () => {
 const executeStrategy = async (
   symbol,
   history,
-  strategyName = "rsi_strategy",
+  strategyName = "impluse_strategy",
 ) => {
   try {
     logger.info(`Executing strategy '${strategyName}' for ${symbol}`);
@@ -129,103 +119,7 @@ const executeStrategy = async (
     const pineCode = fs.readFileSync(pinePath, "utf8");
     const closePrices = history.map((h) => h.close);
 
-    if (strategyName === "rsi_strategy") {
-      // Parse basic parameters
-      const rsiLengthMatch = pineCode.match(/rsiLength\s*=\s*(\d+)/);
-      const rsiLength = rsiLengthMatch ? parseInt(rsiLengthMatch[1]) : 14;
-
-      const rsiValues = indicators.rsi(closePrices, rsiLength);
-
-      if (!rsiValues || rsiValues.length === 0) {
-        return {
-          signal: "NEUTRAL",
-          probability: 0,
-          reason: "Insufficient data for RSI",
-        };
-      }
-
-      const latestRsi = rsiValues[rsiValues.length - 1];
-
-      let signal = "NEUTRAL";
-      let reason = `RSI at ${latestRsi.toFixed(2)}`;
-
-      if (latestRsi < 30) {
-        signal = "BUY";
-        reason = `Oversold RSI: ${latestRsi.toFixed(2)}`;
-      } else if (latestRsi > 70) {
-        signal = "SELL";
-        reason = `Overbought RSI: ${latestRsi.toFixed(2)}`;
-      }
-
-      const probability = calculateProbability(
-        closePrices,
-        rsiValues,
-        signal,
-        "rsi",
-      );
-
-      return {
-        signal,
-        probability,
-        reason,
-        latestValue: latestRsi.toFixed(2),
-      };
-    } else if (strategyName === "sma_strategy") {
-      // Parse SMA parameters
-      const shortPeriodMatch = pineCode.match(/shortPeriod\s*=\s*(\d+)/);
-      const longPeriodMatch = pineCode.match(/longPeriod\s*=\s*(\d+)/);
-
-      const shortPeriod = shortPeriodMatch ? parseInt(shortPeriodMatch[1]) : 9;
-      const longPeriod = longPeriodMatch ? parseInt(longPeriodMatch[1]) : 21;
-
-      const shortSma = indicators.sma(closePrices, shortPeriod);
-      const longSma = indicators.sma(closePrices, longPeriod);
-
-      if (!shortSma.length || !longSma.length) {
-        return {
-          signal: "NEUTRAL",
-          probability: 0,
-          reason: "Insufficient data for SMA",
-        };
-      }
-
-      const currentShort = shortSma[shortSma.length - 1];
-      const currentLong = longSma[longSma.length - 1];
-      const prevShort = shortSma[shortSma.length - 2];
-      const prevLong = longSma[longSma.length - 2];
-
-      let signal = "NEUTRAL";
-      let reason = `SMA(${shortPeriod}): ${currentShort.toFixed(2)}, SMA(${longPeriod}): ${currentLong.toFixed(2)}`;
-
-      // Check for crossover
-      if (prevShort <= prevLong && currentShort > currentLong) {
-        signal = "BUY";
-        reason = `Golden Cross: SMA(${shortPeriod}) crossed above SMA(${longPeriod})`;
-      } else if (prevShort >= prevLong && currentShort < currentLong) {
-        signal = "SELL";
-        reason = `Death Cross: SMA(${shortPeriod}) crossed below SMA(${longPeriod})`;
-      } else if (currentShort > currentLong) {
-        // Trend continuation
-        reason = `Bullish Trend: SMA(${shortPeriod}) > SMA(${longPeriod})`;
-      } else {
-        reason = `Bearish Trend: SMA(${shortPeriod}) < SMA(${longPeriod})`;
-      }
-
-      // Calculate probability based on crossover events history
-      const probability = calculateProbability(
-        closePrices,
-        { short: shortSma, long: longSma },
-        signal,
-        "sma",
-      );
-
-      return {
-        signal,
-        probability,
-        reason,
-        latestValue: `${currentShort.toFixed(2)} / ${currentLong.toFixed(2)}`,
-      };
-    } else if (strategyName === "impluse_strategy") {
+    if (strategyName === "impluse_strategy") {
       // Implementation of Impulse Trend Levels [BOSWaves]
       // From script: https://in.tradingview.com/script/cmA33Ppg-Impulse-Trend-Levels-BOSWaves/
       const len = 19;
@@ -276,50 +170,7 @@ const executeStrategy = async (
         reason,
         latestValue: rawImpulse.toFixed(2),
       };
-    } // else if (strategyName === 'zscore_strategy') {
-    //     // Z-Score Predictive Zones [AlgoPoint] Logic
-    //     // From script: https://in.tradingview.com/script/KSMvIkvh-Z-Score-Predictive-Zones-AlgoPoint/
-    //     const length = 144;
-    //     const smooth = 20;
-
-    //     if (closePrices.length < length + smooth) {
-    //         return { signal: 'NEUTRAL', probability: 0, reason: 'Insufficient data for Z-Score' };
-    //     }
-
-    //     // 1. Raw Z-Score
-    //     const zScores = [];
-    //     for (let i = length; i <= closePrices.length; i++) {
-    //         const slice = closePrices.slice(i - length, i);
-    //         const mean = slice.reduce((a, b) => a + b, 0) / length;
-    //         const variance = slice.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / length;
-    //         const stdDev = Math.sqrt(variance);
-    //         const rawZ = (closePrices[i - 1] - mean) / stdDev;
-    //         zScores.push(rawZ);
-    //     }
-
-    //     // 2. Smooth with VWMA (using SMA as approximation here for complexity)
-    //     const smoothedZ = indicators.sma(zScores, smooth);
-    //     const currentZ = smoothedZ[smoothedZ.length - 1];
-
-    //     let signal = 'NEUTRAL';
-    //     let reason = `Z-Score: ${currentZ.toFixed(2)}`;
-
-    //     // Using standard thresholds from script
-    //     if (currentZ < -1.5) {
-    //         signal = 'BUY';
-    //         reason = `Statistical Bottom: Z-Score (${currentZ.toFixed(2)}) in Support Zone`;
-    //     } else if (currentZ > 1.5) {
-    //         signal = 'SELL';
-    //         reason = `Statistical Top: Z-Score (${currentZ.toFixed(2)}) in Resistance Zone`;
-    //     }
-
-    //     return {
-    //         signal,
-    //         probability: 0.75,
-    //         reason,
-    //         latestValue: currentZ.toFixed(2)
-    //     };
-    // }
+    }
 
     return { signal: "NEUTRAL", probability: 0, reason: "Unknown Strategy" };
   } catch (error) {
@@ -394,7 +245,127 @@ const calculateProbability = (prices, indicatorValues, signal, type) => {
   return successes / occurrences;
 };
 
+// Pine Script Parser Integration
+const { parsePineScript } = require("./pineScriptParser");
+const { PineCodeValidator } = require("../utils/pineCodeValidator");
+
+/**
+ * Execute a Pine Script strategy dynamically
+ */
+const executePineStrategy = async (symbol, history, pineCode) => {
+  try {
+    logger.info(`Executing Pine Script strategy for ${symbol}`);
+
+    // Validate Pine Script code
+    const validator = new PineCodeValidator();
+    const validation = validator.validate(pineCode);
+
+    if (!validation.valid) {
+      logger.error("Pine Script validation failed:", validation.errors);
+      return {
+        signal: "NEUTRAL",
+        probability: 0,
+        reason: `Validation failed: ${validation.errors.map((e) => e.message).join(", ")}`,
+        errors: validation.errors,
+      };
+    }
+
+    // Log warnings if any
+    if (validation.warnings.length > 0) {
+      logger.warn("Pine Script warnings:", validation.warnings);
+    }
+
+    // Sanitize code
+    const sanitizedCode = PineCodeValidator.sanitize(pineCode);
+
+    // Parse and execute with timeout
+    const parseResult = await PineCodeValidator.validateExecution(() => {
+      return parsePineScript(sanitizedCode, history);
+    });
+
+    if (!parseResult.success) {
+      logger.error("Pine Script execution failed:", parseResult.error);
+      return {
+        signal: "NEUTRAL",
+        probability: 0,
+        reason: `Execution failed: ${parseResult.error}`,
+      };
+    }
+
+    // Extract signals from execution result
+    const { variables } = parseResult.result;
+
+    // Determine signal based on common Pine Script patterns
+    let signal = "NEUTRAL";
+    let reason = "Pine Script executed successfully";
+    let probability = 0.5;
+
+    // Check for common signal variables
+    if (variables.buySignal === true || variables.longCondition === true) {
+      signal = "BUY";
+      reason = "Pine Script generated BUY signal";
+      probability = 0.7;
+    } else if (
+      variables.sellSignal === true ||
+      variables.shortCondition === true
+    ) {
+      signal = "SELL";
+      reason = "Pine Script generated SELL signal";
+      probability = 0.7;
+    }
+
+    // Check for RSI-based signals
+    if (variables.rsi && Array.isArray(variables.rsi)) {
+      const latestRsi = variables.rsi[variables.rsi.length - 1];
+      if (latestRsi < 30) {
+        signal = "BUY";
+        reason = `RSI Oversold: ${latestRsi.toFixed(2)}`;
+        probability = 0.65;
+      } else if (latestRsi > 70) {
+        signal = "SELL";
+        reason = `RSI Overbought: ${latestRsi.toFixed(2)}`;
+        probability = 0.65;
+      }
+    }
+
+    // Check for crossover signals
+    if (variables.crossover === true) {
+      signal = "BUY";
+      reason = "Bullish crossover detected";
+      probability = 0.7;
+    } else if (variables.crossunder === true) {
+      signal = "SELL";
+      reason = "Bearish crossunder detected";
+      probability = 0.7;
+    }
+
+    return {
+      signal,
+      probability,
+      reason,
+      variables: Object.keys(variables).reduce((acc, key) => {
+        const value = variables[key];
+        if (Array.isArray(value)) {
+          acc[key] = value[value.length - 1]; // Latest value
+        } else {
+          acc[key] = value;
+        }
+        return acc;
+      }, {}),
+      warnings: validation.warnings,
+    };
+  } catch (error) {
+    logger.error("Error in Pine Script execution:", error.message);
+    return {
+      signal: "NEUTRAL",
+      probability: 0,
+      reason: `Error: ${error.message}`,
+    };
+  }
+};
+
 module.exports = {
   executeStrategy,
   listStrategies,
+  executePineStrategy,
 };

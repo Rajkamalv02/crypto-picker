@@ -32,7 +32,13 @@ export default function MarketTable({ assets, onSelect, selectedSymbol }: Market
                         >
                             <td className="px-4 py-3 whitespace-nowrap">
                                 <div className="flex items-center">
-                                    <img className="h-8 w-8 rounded-full mr-3" src={asset.image} alt={asset.symbol} />
+                                    {asset.image ? (
+                                        <img className="h-8 w-8 rounded-full mr-3" src={asset.image} alt={asset.symbol} />
+                                    ) : (
+                                        <div className="h-8 w-8 rounded-full mr-3 bg-gray-700 flex items-center justify-center text-xs text-gray-400 font-bold border border-gray-600">
+                                            {asset.symbol.substring(0, 2)}
+                                        </div>
+                                    )}
                                     <div>
                                         <div className="text-sm font-bold text-gray-100">{asset.symbol}</div>
                                         <div className="text-[10px] text-gray-400 truncate max-w-[100px]">{asset.fullName}</div>

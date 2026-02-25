@@ -10,7 +10,7 @@ import Pagination from '@/components/Pagination';
 import GlobalSearch from '@/components/GlobalSearch';
 import TradingViewChart from '@/components/TradingViewChart';
 import StrategySelector from '@/components/StrategySelector';
-import { Asset, AssetDetailResponse, MarketDataResponse } from '@/types';
+import { Asset, AssetDetailResponse, MarketDataResponse, Strategy } from '@/types'; // Import Strategy type
 import { RefreshCcw, Activity, Terminal } from 'lucide-react';
 
 interface MarketDashboardProps {
@@ -28,10 +28,11 @@ export default function MarketDashboard({ type }: MarketDashboardProps) {
     const [itemsPerPage] = useState(5);
     const [search, setSearch] = useState('');
     const [minPrice, setMinPrice] = useState(0);
-    const [maxPrice, setMaxPrice] = useState(type === 'crypto' ? 1000 : 10000);
+    const [maxPrice, setMaxPrice] = useState(type === 'crypto' ? 1000 : 100000);
 
     const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
-    const [selectedStrategy, setSelectedStrategy] = useState<string>('rsi_strategy');
+    const [strategies, setStrategies] = useState<Strategy[]>([]); // Add strategies state
+    const [selectedStrategy, setSelectedStrategy] = useState<string>(''); // Initialize as empty string
     const [detailData, setDetailData] = useState<AssetDetailResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [detailLoading, setDetailLoading] = useState(false);
@@ -64,6 +65,46 @@ export default function MarketDashboard({ type }: MarketDashboardProps) {
         }
     };
 
+    const fetchStrategies = async () => {
+        try {
+            const response = await fetch('http://localhost:5000/api/analysis/strategies');
+            const data = await response.json();
+            if (Array.isArray(data)) {
+                setStrategies(data);
+                if (data.length > 0) {
+                    // Set selectedStrategy to 'impluse_strategy' if available, otherwise the first one
+                    const impulseStrategy = data.find(s => s.id === 'impluse_strategy');
+                    if (impulseStrategy) {
+                        setSelectedStrategy('impluse_strategy');
+                    } else {
+                        setSelectedStrategy(data[0].id);
+                    }
+                }
+            } else {
+                addLog('API did not return an array for strategies. Found: ' + JSON.stringify(data));
+                setStrategies([]);
+            }
+        } catch (error: any) { // Type 'any' for error to access message
+            addLog('Error fetching strategies: ' + error.message);
+            console.error('Failed to fetch strategies:', error);
+            setStrategies([]);
+        }
+    };
+
+    useEffect(() => {
+        fetchMarket();
+    }, [currentPage, search, minPrice, maxPrice]);
+
+    useEffect(() => {
+        fetchStrategies(); // Fetch strategies on mount
+    }, []);
+
+    useEffect(() => {
+        if (selectedSymbol && selectedStrategy) { // Ensure selectedStrategy is not empty
+            fetchDetail(selectedSymbol, investmentAmount, selectedStrategy);
+        }
+    }, [selectedSymbol, investmentAmount, selectedStrategy]);
+
     const handleFilterChange = (filters: { search: string; minPrice: number; maxPrice: number }) => {
         setSearch(filters.search);
         setMinPrice(filters.minPrice);
@@ -86,16 +127,6 @@ export default function MarketDashboard({ type }: MarketDashboardProps) {
             setDetailLoading(false);
         }
     };
-
-    useEffect(() => {
-        fetchMarket();
-    }, [currentPage, search, minPrice, maxPrice]);
-
-    useEffect(() => {
-        if (selectedSymbol) {
-            fetchDetail(selectedSymbol, investmentAmount, selectedStrategy);
-        }
-    }, [selectedSymbol, investmentAmount, selectedStrategy]);
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -194,10 +225,14 @@ export default function MarketDashboard({ type }: MarketDashboardProps) {
                             />
                         </div>
 
-                        <StrategySelector 
-                            currentStrategy={selectedStrategy}
-                            onStrategyChange={setSelectedStrategy}
-                        />
+                        {strategies.length > 0 && selectedStrategy && ( // Conditionally render and pass strategies
+                            <StrategySelector 
+                                strategies={strategies}
+                                currentStrategy={selectedStrategy}
+                                onStrategyChange={setSelectedStrategy}
+                                onDeleteStrategy={fetchStrategies} // Pass fetchStrategies to re-fetch after deletion
+                            />
+                        )}
 
                         {detailLoading && !detailData ? (
                             <div className="bg-gray-800 p-20 rounded-lg shadow text-center text-gray-400">Analyzing market dynamics...</div>

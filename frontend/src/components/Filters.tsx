@@ -8,10 +8,17 @@ interface FiltersProps {
     initialMaxPrice?: number;
 }
 
-export default function Filters({ onFilterChange, initialMinPrice = 0, initialMaxPrice = 1000 }: FiltersProps) {
+export default function Filters({ onFilterChange, initialMinPrice = 0, initialMaxPrice = 100000 }: FiltersProps) {
     const [search, setSearch] = useState('');
     const [minPrice, setMinPrice] = useState(initialMinPrice.toString());
     const [maxPrice, setMaxPrice] = useState(initialMaxPrice.toString());
+
+    // Sync internal state when initial props change (e.g., tab switching)
+    useEffect(() => {
+        setMinPrice(initialMinPrice.toString());
+        setMaxPrice(initialMaxPrice.toString());
+        setSearch('');
+    }, [initialMinPrice, initialMaxPrice]);
 
     // Debounce filter changes
     useEffect(() => {
